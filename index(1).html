@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Paycheck Ledger</title>
+<style>
+  :root{
+    --paper:#F4F6F2; --ink:#1B2724; --ink-2:#4B5955; --ink-3:#7C8985; --rule:#D9DED9; --white:#FFFFFF;
+    --green:#0E6B52; --green-soft:#DCEDE5; --amber:#B8741E; --amber-soft:#F5E6CF; --red:#A3402F; --red-soft:#F3DCD6;
+    --serif:"Iowan Old Style","Palatino Linotype","Book Antiqua",Palatino,Georgia,serif;
+    --sans:"Avenir Next","Segoe UI","Helvetica Neue",Helvetica,Arial,sans-serif;
+    box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+    --paper:#141A18; --ink:#E8ECE9; --ink-2:#B7C1BC; --ink-3:#7F8B86; --rule:#2A3431; --white:#1C2421;
+    --green:#4FB893; --green-soft:#1E3A31; --amber:#E0A050; --amber-soft:#3E2E17; --red:#E07A65; --red-soft:#3F231E;
+  }}
+  *,*::before,*::after{box-sizing:inherit}
+  html{scroll-padding-top:env(safe-area-inset-top,0px)}
+  html,body{height:100%}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.45;font-variant-numeric:tabular-nums}
+  a{color:inherit}
+  button,input,select,textarea{font:inherit;color:inherit}
+  h1,h2,h3{font-family:var(--serif);font-weight:500;margin:0;letter-spacing:-.005em}
+  h1{font-size:28px;line-height:1.15}
+  h2{font-size:21px;line-height:1.2}
+  h3{font-size:17px}
+  .muted{color:var(--ink-3)}
+  .sub{color:var(--ink-2)}
+  .num{font-family:var(--serif)}
+  .good{color:var(--green)} .warn{color:var(--amber)} .bad{color:var(--red)}
+
+  /* layout */
+  .app{display:grid;grid-template-columns:200px 1fr;min-height:100%}
+  nav{border-right:1px solid var(--rule);padding:26px 16px;position:sticky;top:0;height:100vh;height:100dvh;display:flex;flex-direction:column;gap:6px}
+  nav .brand{font-family:var(--serif);font-size:20px;margin:0 8px 18px}
+  nav .brand small{display:block;font-family:var(--sans);font-size:12px;color:var(--ink-3);margin-top:2px}
+  nav button{background:none;border:0;text-align:left;padding:9px 10px;border-radius:8px;color:var(--ink-2);cursor:pointer;width:100%}
+  nav button:hover{background:var(--white)}
+  nav button.on{background:var(--white);color:var(--ink);box-shadow:inset 3px 0 0 var(--green)}
+  nav .spacer{flex:1}
+  nav .foot{font-size:12px;color:var(--ink-3);padding:0 10px}
+  main{padding:32px 40px 80px;max-width:1040px;width:100%}
+  section+section{margin-top:44px}
+  .head{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+  .head p{margin:4px 0 0;color:var(--ink-2)}
+  @media (max-width:860px){
+    .app{grid-template-columns:1fr}
+    nav{position:fixed;bottom:0;left:0;right:0;top:auto;height:auto;flex-direction:row;padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px));border-right:0;border-top:1px solid var(--rule);background:var(--paper);z-index:5;overflow-x:auto;gap:2px}
+    nav .brand,nav .spacer,nav .foot{display:none}
+    nav button{flex:1 0 auto;text-align:center;font-size:13px;padding:8px 10px;white-space:nowrap}
+    nav button.on{box-shadow:inset 0 -3px 0 var(--green)}
+    main{padding:22px 18px 110px}
+    h1{font-size:24px}
+  }
+
+  /* primitives */
+  .panel{background:var(--white);border:1px solid var(--rule);border-radius:12px;padding:20px 22px}
+  .grid{display:grid;gap:16px}
+  .g3{grid-template-columns:repeat(3,1fr)} .g2{grid-template-columns:repeat(2,1fr)} .g4{grid-template-columns:repeat(4,1fr)}
+  @media (max-width:700px){.g3,.g4{grid-template-columns:1fr 1fr}.g2{grid-template-columns:1fr}}
+  @media (max-width:440px){.g3,.g4{grid-template-columns:1fr}}
+  .stat .lbl{font-size:13px;color:var(--ink-2)}
+  .stat .val{font-family:var(--serif);font-size:30px;line-height:1.1;margin:4px 0 2px}
+  .stat .note{font-size:12.5px;color:var(--ink-3)}
+  .btn{border:1px solid var(--rule);background:var(--white);border-radius:8px;padding:8px 14px;cursor:pointer;color:var(--ink)}
+  .btn:hover{border-color:var(--ink-3)}
+  .btn.primary{background:var(--green);border-color:var(--green);color:#fff}
+  .btn.primary:hover{filter:brightness(1.08)}
+  .btn.danger{color:var(--red)}
+  .btn.sm{padding:4px 10px;font-size:13px}
+  .btn.link{border:0;background:none;padding:2px 4px;color:var(--ink-2);text-decoration:underline;text-underline-offset:3px}
+  .btn:focus-visible,input:focus-visible,select:focus-visible,nav button:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+  .field{display:flex;flex-direction:column;gap:5px}
+  .field label{font-size:13px;color:var(--ink-2)}
+  .field input,.field select,.field textarea{border:1px solid var(--rule);border-radius:8px;padding:9px 11px;background:var(--paper);width:100%}
+  .field input[type=number]{text-align:right}
+  .field .hint{font-size:12px;color:var(--ink-3)}
+  .money{position:relative}
+  .money input{padding-left:24px;text-align:right}
+  .money::before{content:"$";position:absolute;left:11px;top:9px;color:var(--ink-3)}
+  .form{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+  .form .wide{grid-column:1/-1}
+  .actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:18px}
+  table{width:100%;border-collapse:collapse}
+  th{text-align:left;font-weight:500;font-size:12.5px;color:var(--ink-3);padding:6px 8px;border-bottom:1px solid var(--rule)}
+  td{padding:9px 8px;border-bottom:1px solid var(--rule);vertical-align:middle}
+  tr:last-child td{border-bottom:0}
+  td.r,th.r{text-align:right}
+  td.n{font-family:var(--serif);font-size:16px}
+  .wrap{overflow-x:auto}
+  .tag{display:inline-block;font-size:11.5px;padding:2px 7px;border-radius:999px;background:var(--paper);color:var(--ink-2);border:1px solid var(--rule)}
+  .tag.auto{background:var(--green-soft);color:var(--green);border-color:transparent}
+  .tag.manual{background:var(--amber-soft);color:var(--amber);border-color:transparent}
+  .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:10px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:9}
+  .toast.show{opacity:1}
+  @media (max-width:860px){.toast{bottom:calc(74px + env(safe-area-inset-bottom,0px))}}
+  .empty{color:var(--ink-3);padding:18px 0;text-align:center}
+  .bar{height:14px;border-radius:7px;background:var(--rule);overflow:hidden;display:flex}
+  .bar span{display:block;height:100%}
+  .rowlist>div{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--rule);gap:12px}
+  .rowlist>div:last-child{border-bottom:0}
+  .check{display:flex;align-items:center;gap:10px}
+  .check input{width:18px;height:18px;accent-color:var(--green)}
+  .check.done .name{color:var(--ink-3);text-decoration:line-through}
+  .details summary{cursor:pointer;color:var(--ink-2);list-style:none}
+  .details summary::-webkit-details-marker{display:none}
+  .details summary::before{content:"+ ";}
+  .details[open] summary::before{content:"– ";}
+  svg text{font-family:var(--sans)}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+  /* payday hero */
+  .hero{background:var(--white);border:1px solid var(--rule);border-radius:14px;padding:28px 30px}
+  .hero .line{font-family:var(--serif);font-size:22px;line-height:1.35}
+  .hero .line b{font-weight:500}
+  .hero .line .in{color:var(--green)} .hero .line .out{color:var(--ink-2)} .hero .line .free{border-bottom:2px solid var(--green)}
+  .hero .line .free.neg{border-color:var(--red);color:var(--red)}
+  .flow{margin:22px 0 6px}
+  .flow .bar{height:22px;border-radius:6px}
+  .flow .legend{display:flex;gap:22px;font-size:13px;color:var(--ink-2);margin-top:8px;flex-wrap:wrap}
+  .flow .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+  .hero .split{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:22px}
+  @media (max-width:760px){.hero{padding:22px 20px}.hero .split{grid-template-columns:1fr}.hero .line{font-size:19px}}
+</style>
+</head>
+<body>
+<div class="app">
+  <nav id="nav"></nav>
+  <main id="main"></main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------- helpers ---------- */
+const $ = (s, el=document) => el.querySelector(s);
+const $$ = (s, el=document) => [...el.querySelectorAll(s)];
+const fmt = n => new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n||0);
+const fmt0 = n => new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(n||0);
+const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Math.random().toString(36).slice(2,9);
+const todayISO = () => { const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
+const dLong = iso => { if(!iso) return '—'; const [y,m,d]=iso.split('-').map(Number); return new Date(y,m-1,d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); };
+const dShort = iso => { if(!iso) return '—'; const [y,m,d]=iso.split('-').map(Number); return new Date(y,m-1,d).toLocaleDateString('en-US',{month:'short',day:'numeric'}); };
+const num = v => { const n=parseFloat(String(v).replace(/[$,]/g,'')); return isFinite(n)?n:0; };
+const sum = a => a.reduce((t,x)=>t+(+x||0),0);
+const round2 = n => Math.round(n*100)/100;
+let toastT; function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2200); }
+
+/* ---------- seed data (from FINANCES sheet, Jul–Sep 2026) ---------- */
+function seed(){ return JSON.parse(JSON.stringify(SEED)); }
+const SEED={"version": 3, "paycheck": {"defaultNet": 0}, "balances": {"checking": 0, "savings": 0, "asOf": "2026-01-01"}, "plan": {"tier1": 1000, "tier2": 5000}, "bills": [], "irregular": [], "periods": [], "tx": [], "cleared": {}, "maintenance": [], "cards": [], "spend": []};
+
+/* ---------- state ---------- */
+const KEY='paycheck-ledger-v1';
+let S;
+function load(){
+  try{ const raw=localStorage.getItem(KEY); if(raw){ S=JSON.parse(raw); return; } }catch(e){}
+  S=seed(); save();
+}
+function migrate(){
+  S.spend=S.spend||[];
+  S.periods.forEach(p=>{ if(p.extraManual==null) p.extraManual=p.extra||0; });
+  if(!S.cards){
+    const P=S.plan||{}; const id=uid();
+    S.cards=[{id,name:P.ccName||'Credit card',balance:S.balances.cc||0,apr:P.ccApr||22.99,payment:P.ccMonthlyPayment||500,extra:P.ccExtra||0}];
+    S.bills.forEach(b=>{ if(b.kind==='cc'&&!b.cardId) b.cardId=id; });
+    S.tx.forEach(t=>{ if(t.kind.startsWith('cc_')&&!t.cardId) t.cardId=id; });
+    S.periods.forEach(p=>{ if(!p.ccPaidBy) p.ccPaidBy={[id]:p.ccPaid||0}; });
+    delete S.balances.cc;
+  }
+  S.cards.forEach(c=>{ c.extra=c.extra||0; c.payment=c.payment||0; });
+  S.bills.forEach(b=>{ if(b.kind==='cc'&&!S.cards.some(c=>c.id===b.cardId)) b.cardId=S.cards[0]&&S.cards[0].id; });
+  S.version=3;
+  if(typeof resyncExtras==='function') resyncExtras();
+}
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){ toast('Could not save — browser storage is blocked'); } }
+
+/* ---------- derived ---------- */
+const billsFor = p => S.bills.filter(b=>b.period===p);
+const billsTotal = p => round2(sum(billsFor(p).map(b=>b.amount)));
+/* irregular items with a schedule ("months" like 1,4,7,10 and "on" 1st/15th) drop into that paycheck automatically */
+const irrMonths = i => String(i.months||'').split(/[\s,]+/).map(Number).filter(n=>n>=1&&n<=12);
+function dueIrregulars(key){
+  const month=parseInt(key.slice(5,7)); const per=key.endsWith('15')?'15th':'1st';
+  return S.irregular.filter(i=>i.on===per&&irrMonths(i).includes(month)).map(i=>({id:'irr_'+i.id,name:i.name,period:per,dueDay:per,type:'Auto',amount:i.amount,notes:i.notes,kind:'irregular',irregular:true}));
+}
+const billsForKey = key => billsFor(key.endsWith('15')?'15th':'1st').concat(dueIrregulars(key));
+const billsTotalKey = key => round2(sum(billsForKey(key).map(b=>b.amount)));
+const irregularMonthly = () => round2(sum(S.irregular.map(i=>i.amount/(i.everyMonths||12))));
+const monthlyNet = () => S.paycheck.defaultNet*2;
+const monthlyBills = () => billsTotal('1st')+billsTotal('15th');
+const monthlyFree = () => round2(monthlyNet()-monthlyBills()-irregularMonthly());
+const savingsMonthly = () => sum(S.bills.filter(b=>b.kind==='savings').map(b=>b.amount));
+const card = id => S.cards.find(c=>c.id===id);
+const ccTotal = () => round2(sum(S.cards.map(c=>c.balance)));
+const ccBudgetFor = cid => sum(S.bills.filter(b=>b.kind==='cc'&&b.cardId===cid).map(b=>b.amount));
+const netPosition = () => S.balances.checking+S.balances.savings-ccTotal();
+const dueNum = s => parseInt(String(s).replace(/\D/g,''))||0;
+/* what's actually free right now — derived from the latest logged paycheck, not the hand-typed checking snapshot.
+   free       = before + net - bills - extra   (same math as the Pay periods "Left" column)
+   pending    = that period's bills you haven't ticked as cleared yet
+   inBank     = what checking *should* read right now = free + pending (minus the paycheck if it hasn't landed yet) */
+function rightNow(){
+  const latest=S.periods.slice().sort((a,b)=>a.date<b.date?1:-1)[0];
+  if(!latest){ const key=paydayKeyFor(todayISO()); return {key,per:key.endsWith('15')?'15th':'1st',pending:[],pendingAmt:0,free:S.balances.checking,inBank:S.balances.checking,landed:true,logged:false,earmark:irregularMonthly(),date:todayISO(),drift:null}; }
+  const key=periodKey(latest), per=latest.period, cleared=S.cleared[key]||{};
+  const pending=billsForKey(key).filter(b=>!cleared[b.id]);
+  const pendingAmt=round2(sum(pending.map(b=>b.amount)));
+  const free=remaining(latest);
+  const landed=latest.date<=todayISO();
+  const inBank=round2(free+pendingAmt-(landed?0:latest.net));
+  const drift=(S.balances.asOf&&S.balances.asOf>=latest.date)?round2(S.balances.checking-inBank):null;
+  return {key,per,pending,pendingAmt,free,inBank,landed,logged:true,earmark:irregularMonthly(),date:latest.date,net:latest.net,drift};
+}
+const remaining = p => round2(p.before+p.net-p.bills-p.extra);
+const beforeSpend = p => round2(p.before+p.net-p.bills-(p.extraManual||0));
+const paydayKeyFor = iso => { const [y,m,d]=iso.split('-').map(Number); return y+'-'+String(m).padStart(2,'0')+(d>=15?'-15':'-01'); };
+/* Which paycheck a logged period IS, regardless of the day it actually hit the bank.
+   A "1st" check received on the 30th belongs to next month's 1st; a "15th" check received on the 13th is still that month's 15th. */
+function periodKey(p){
+  const [y,m,d]=p.date.split('-').map(Number); const pad=n=>String(n).padStart(2,'0');
+  if(p.period==='15th') return `${y}-${pad(m)}-15`;
+  if(d>=15){ const ny=m===12?y+1:y, nm=m===12?1:m+1; return `${ny}-${pad(nm)}-01`; }
+  return `${y}-${pad(m)}-01`;
+}
+/* Which paycheck a purchase comes out of: the most recent check that had actually landed by that date,
+   or the calendar period if no check has been logged for it yet. */
+function spendKeyFor(date){
+  const cal=paydayKeyFor(date);
+  const owner=S.periods.filter(p=>p.date<=date).sort((a,b)=>a.date<b.date?1:-1)[0];
+  const k=owner?periodKey(owner):cal;
+  return k>cal?k:cal;
+}
+const spendFor = key => S.spend.filter(x=>spendKeyFor(x.date)===key);
+const spendTotal = key => round2(sum(spendFor(key).map(x=>x.amount)));
+function resyncExtras(){
+  S.periods.forEach(p=>{ p.extra=round2((p.extraManual||0)+spendTotal(periodKey(p))); });
+  const latest=S.periods.slice().sort((a,b)=>a.date<b.date?1:-1)[0];
+  if(latest&&!latest.seeded){ S.balances.checking=remaining(latest); }
+}
+function currentPeriod(){
+  const key=spendKeyFor(todayISO()); const p=S.periods.find(x=>periodKey(x)===key);
+  const start=p?beforeSpend(p):round2(S.paycheck.defaultNet-billsTotalKey(key));
+  return {key,logged:!!p,start,spent:spendTotal(key),left:round2(start-spendTotal(key)),label:key.endsWith('15')?'15th':'1st'};
+}
+function spendForm(id,defaultKey){
+  return `<div class="form" id="${id}"><div class="field"><label>Amount</label><div class="money"><input type="number" step="0.01" name="amt" placeholder="0.00"></div></div><div class="field"><label>What was it</label><input type="text" name="note" placeholder="Costco, gas, Amazon…"></div><div class="field"><label>Date</label><input type="date" name="date" value="${todayISO()}"></div><div class="field" style="justify-content:flex-end"><button class="btn primary" data-addspend="${id}">Add</button></div></div>`;
+}
+function wireSpendForm(id,after){
+  const f=$('#'+id);
+  const submit=()=>{ const amt=num(f.querySelector('[name=amt]').value); if(!amt){toast('Enter an amount');return;} const date=f.querySelector('[name=date]').value||todayISO(); const key=spendKeyFor(date); S.spend.push({id:uid(),date,key,amount:amt,note:f.querySelector('[name=note]').value.trim()}); S.spend[S.spend.length-1].key=spendKeyFor(date); resyncExtras(); save(); toast('Added'); after&&after(); };
+  f.querySelector('[data-addspend]').addEventListener('click',submit);
+  f.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); submit(); } });
+}
+function spendList(key){
+  const items=spendFor(key).slice().sort((a,b)=>a.date<b.date?1:-1);
+  if(!items.length) return '<div class="empty" style="padding:10px 0">Nothing logged for this period yet.</div>';
+  return `<div class="rowlist">${items.map(x=>`<div><span>${esc(x.note)||'<span class="muted">untitled</span>'} <span class="muted">· ${dShort(x.date)}</span></span><span style="white-space:nowrap"><span class="num">${fmt(x.amount)}</span> <button class="btn link sm" data-delspend="${x.id}">remove</button></span></div>`).join('')}</div>`;
+}
+function wireSpendDeletes(m){
+  $$('[data-delspend]',m).forEach(b=>b.addEventListener('click',()=>{ const x=S.spend.find(s=>s.id===b.dataset.delspend); S.spend=S.spend.filter(s=>s.id!==x.id); resyncExtras(); save(); render(); }));
+}
+function nextPayday(){
+  const d=new Date(); const y=d.getFullYear(), m=d.getMonth(), day=d.getDate();
+  if(day<15) return {period:'15th', date:new Date(y,m,15)};
+  return {period:'1st', date:new Date(y,m+1,1)};
+}
+const isoOf = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+function projectCC(balance, apr, payment, extra){
+  const rows=[]; let bal=balance, interestTotal=0, month=0;
+  const r=apr/100/12;
+  while(bal>0.005 && month<360){
+    month++;
+    const interest=bal*r; interestTotal+=interest;
+    let pay=payment+(month===1?extra:0);
+    if(pay>bal+interest) pay=bal+interest;
+    const closing=bal+interest-pay;
+    rows.push({month,opening:bal,interest,pay,closing});
+    if(pay<=interest && month>1){ return {rows,months:Infinity,interestTotal,neverPays:true}; }
+    bal=closing;
+  }
+  return {rows,months:month,interestTotal,neverPays:false};
+}
+function applyTx(t, dir=1){
+  const a=t.amount*dir;
+  const c=t.cardId?card(t.cardId):S.cards[0]; if(!c&&t.kind.startsWith('cc_')) return;
+  if(t.kind==='cc_payment') c.balance=round2(c.balance-a);
+  else if(t.kind==='cc_charge') c.balance=round2(c.balance+a);
+  else if(t.kind==='savings_deposit') S.balances.savings=round2(S.balances.savings+a);
+  else if(t.kind==='savings_withdrawal') S.balances.savings=round2(S.balances.savings-a);
+}
+
+/* ---------- charts (inline SVG) ---------- */
+function lineChart(points, {w=640,h=180,color='var(--amber)',fill=true,yfmt=fmt0,labels=[]}={}){
+  if(points.length<2) return '<div class="empty">Not enough data to chart yet</div>';
+  const padL=54,padR=14,padT=12,padB=26;
+  const ys=points.map(p=>p.y); const maxY=Math.max(...ys,1), minY=Math.min(0,...ys);
+  const X=i=>padL+(i/(points.length-1))*(w-padL-padR);
+  const Y=v=>padT+(1-(v-minY)/(maxY-minY||1))*(h-padT-padB);
+  const path=points.map((p,i)=>(i?'L':'M')+X(i).toFixed(1)+' '+Y(p.y).toFixed(1)).join(' ');
+  const area=path+` L${X(points.length-1).toFixed(1)} ${Y(minY).toFixed(1)} L${X(0).toFixed(1)} ${Y(minY).toFixed(1)} Z`;
+  const ticks=[0,.5,1].map(f=>minY+(maxY-minY)*f);
+  const grid=ticks.map(t=>`<line x1="${padL}" x2="${w-padR}" y1="${Y(t).toFixed(1)}" y2="${Y(t).toFixed(1)}" stroke="var(--rule)"/><text x="${padL-8}" y="${(Y(t)+4).toFixed(1)}" text-anchor="end" font-size="11" fill="var(--ink-3)">${yfmt(t)}</text>`).join('');
+  const step=Math.max(1,Math.ceil(points.length/8));
+  const xl=points.map((p,i)=>(i%step===0||i===points.length-1)?`<text x="${X(i).toFixed(1)}" y="${h-8}" text-anchor="middle" font-size="11" fill="var(--ink-3)">${esc(p.label)}</text>`:'').join('');
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" role="img">${grid}${fill?`<path d="${area}" fill="${color}" opacity=".12"/>`:''}<path d="${path}" fill="none" stroke="${color}" stroke-width="2.2"/>${xl}</svg>`;
+}
+
+/* ---------- pages ---------- */
+const PAGES=[['payday','Payday'],['log','Pay periods'],['spending','Spending'],['bills','Bills'],['debt','Debt & savings'],['upkeep','Home upkeep'],['settings','Settings']];
+let page=location.hash.replace('#','')||'payday';
+if(!PAGES.some(p=>p[0]===page)) page='payday';
+let editingPeriod=null;
+
+function renderNav(){
+  $('#nav').innerHTML=`<div class="brand">Paycheck Ledger<small>semi-monthly · local only</small></div>`+
+    PAGES.map(([id,label])=>`<button class="${page===id?'on':''}" data-page="${id}">${label}</button>`).join('')+
+    `<div class="spacer"></div><div class="foot">Saved in this browser.<br>Back up from Settings.</div>`;
+}
+
+function render(){
+  renderNav();
+  const m=$('#main');
+  ({payday:pagePayday,log:pageLog,spending:pageSpending,bills:pageBills,debt:pageDebt,upkeep:pageUpkeep,settings:pageSettings})[page](m);
+  window.scrollTo({top:0});
+}
+
+/* --- Payday --- */
+function pagePayday(m){
+  const np=nextPayday(); const key=isoOf(np.date); const bills=billsForKey(key); const bt=billsTotalKey(key);
+  const net=S.paycheck.defaultNet; const free=round2(net-bt);
+  /* the checklist belongs to the check you're currently living on (latest logged), not the forecast of the next one */
+  const now0=rightNow(); const ckKey=now0.logged?now0.key:paydayKeyFor(todayISO()); const ckPer=ckKey.endsWith('15')?'15th':'1st';
+  const ckBills=billsForKey(ckKey); const ckTotal=billsTotalKey(ckKey);
+  const cleared=S.cleared[ckKey]||{}; const clearedAmt=sum(ckBills.filter(b=>cleared[b.id]).map(b=>b.amount));
+  const pctBills=Math.min(100,bt/net*100);
+  const last=S.periods.slice().sort((a,b)=>a.date<b.date?1:-1)[0];
+  const big=S.cards.slice().sort((a,b)=>b.balance-a.balance)[0];
+  const cardProj=S.cards.map(c=>{ const r=projectCC(c.balance,c.apr,c.payment,c.extra); const d=new Date(); if(isFinite(r.months)) d.setMonth(d.getMonth()+r.months); return {c,r,when:isFinite(r.months)?d.toLocaleDateString('en-US',{month:'short',year:'numeric'}):null}; });
+  const proj=big?projectCC(big.balance,big.apr,big.payment,big.extra):{rows:[],months:0,interestTotal:0};
+  const now=rightNow();
+  const savT2=S.plan.tier2, savPct=Math.min(100,S.balances.savings/savT2*100);
+  const hist=S.periods.slice().sort((a,b)=>a.date<b.date?-1:1).map(p=>({label:dShort(p.date),y:remaining(p)}));
+  const cur=currentPeriod();
+
+  m.innerHTML=`
+  <section>
+    <div class="head"><div><h1>${np.date.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})} is the ${np.period} paycheck</h1>
+    <p>Here's how it should land, based on your current bill list.</p></div>
+    ${S.periods.some(p=>periodKey(p)===key)?`<span class="tag" style="font-size:13px;padding:6px 12px">Logged ✓</span>`:`<button class="btn primary" data-go="log" data-new="1">Log this paycheck</button>`}</div>
+    <div class="hero">
+      <div class="line"><b class="in">${fmt(net)}</b> comes in, <b class="out">${fmt(bt)}</b> goes to ${bills.length} bills, and <b class="free ${free<0?'neg':''}">${fmt(free)}</b> is yours to ${free<0?'find somewhere — this period runs short':'spend or send to the card'}.</div>
+      <div class="flow">
+        <div class="bar"><span style="width:${pctBills}%;background:var(--ink-2)"></span><span style="width:${Math.max(0,100-pctBills)}%;background:var(--green)"></span></div>
+        <div class="legend"><span><i style="background:var(--ink-2)"></i>Bills ${fmt(bt)}</span><span><i style="background:var(--green)"></i>Free ${fmt(free)}</span>${last?`<span class="muted">Last ${last.period} check ended with ${fmt(remaining(last))} left</span>`:''}</div>
+      </div>
+      <div class="split">
+        <div>
+          <h3>${ckPer} check (${dShort(ckKey)}) — tick bills as they clear</h3>
+          <div class="rowlist" id="checklist">
+            ${ckBills.map(b=>`<div class="check ${cleared[b.id]?'done':''}"><label class="check" style="flex:1"><input type="checkbox" data-clear="${b.id}" ${cleared[b.id]?'checked':''}><span class="name">${esc(b.name)}</span><span class="tag ${b.irregular?'manual':b.type.toLowerCase()}">${b.irregular?'Irregular':b.type}</span></label><span class="num">${fmt(b.amount)}</span></div>`).join('')}
+          </div>
+          <p class="sub" style="margin:10px 0 0">${fmt(clearedAmt)} cleared · ${fmt(round2(ckTotal-clearedAmt))} still to go</p>
+        </div>
+        <div>
+          <h3>Where things stand</h3>
+          <div class="rowlist">
+            <div><span>Checking <span class="muted">(as of ${dShort(S.balances.asOf)})</span></span><span class="num">${fmt(S.balances.checking)}</span></div>
+            <div><span>Savings</span><span class="num good">${fmt(S.balances.savings)}</span></div>
+            ${S.cards.map(c=>`<div><span>${esc(c.name)}</span><span class="num warn">${fmt(c.balance)}</span></div>`).join('')}
+            <div><span>Net position <span class="muted">(excl. mortgage & HELOC)</span></span><span class="num ${netPosition()<0?'bad':'good'}">${fmt(netPosition())}</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="head"><div><h2>What's actually free right now</h2><p>${now.logged?`From the ${now.per} paycheck you logged for ${dShort(now.date)}: before + net − bills − spending. Tick bills as they clear to see what your bank balance should read.`:`You haven't logged a paycheck yet, so this falls back to the checking balance on Debt & savings.`}</p></div></div>
+    <div class="panel">
+      <div class="grid g3" style="margin-bottom:${now.pending.length?18:0}px">
+        <div class="stat"><div class="lbl">Free until the next check</div><div class="val ${now.free<0?'bad':'good'}">${fmt(now.free)}</div><div class="note">${fmt(round2(now.free-now.earmark))} if you leave the ${fmt0(now.earmark)} irregular set-aside alone</div></div>
+        <div class="stat"><div class="lbl">Bills not cleared yet</div><div class="val warn">${fmt(now.pendingAmt)}</div><div class="note">${now.pending.length} of ${billsForKey(now.key).length} still to come out</div></div>
+        <div class="stat"><div class="lbl">Checking should read</div><div class="val">${fmt(now.inBank)}</div><div class="note">${now.landed?'free + bills still to clear':`until the ${fmt(now.net)} check lands on ${dShort(now.date)}`}${now.drift!=null&&Math.abs(now.drift)>0.005?` · bank entry ${fmt(S.balances.checking)} (${dShort(S.balances.asOf)}) is ${fmt(Math.abs(now.drift))} ${now.drift<0?'lower':'higher'}`:''}</div></div>
+      </div>
+      ${now.pending.length?`<div class="rowlist">${now.pending.map(b=>`<div class="check"><label class="check" style="flex:1"><input type="checkbox" data-clearnow="${b.id}"><span class="name">${esc(b.name)}</span><span class="muted">due the ${esc(b.dueDay)}</span></label><span class="num">${fmt(b.amount)}</span></div>`).join('')}</div><p class="muted" style="font-size:12.5px;margin:8px 0 0">Tick one once it's actually left checking. "Free" doesn't change — it's already net of every bill — only the "should read" number does.</p>`:''}
+    </div>
+  </section>
+
+  <section>
+    <div class="head"><div><h2>Spending since the ${cur.label} paycheck (${dShort(cur.key)})</h2><p>${cur.logged?`That check left ${fmt(cur.start)} after bills.`:`You haven't logged that check yet, so this starts from the budgeted ${fmt(cur.start)} free.`} Add purchases here as they happen. This is the plan's estimate — the bank-based number above is what's really available.</p></div></div>
+    <div class="panel">
+      <div class="grid g3" style="margin-bottom:18px">
+        <div class="stat"><div class="lbl">Started with</div><div class="val">${fmt(cur.start)}</div></div>
+        <div class="stat"><div class="lbl">Spent so far</div><div class="val warn">${fmt(cur.spent)}</div></div>
+        <div class="stat"><div class="lbl">Left, by the budget math</div><div class="val ${cur.left<0?'bad':'good'}">${fmt(cur.left)}</div></div>
+      </div>
+      ${spendForm('spendQuick')}
+      <div style="margin-top:14px">${spendList(cur.key)}</div>
+    </div>
+  </section>
+
+  <section>
+    <div class="head"><h2>The month at a glance</h2></div>
+    <div class="grid g4">
+      <div class="panel stat"><div class="lbl">Take-home per month</div><div class="val">${fmt0(monthlyNet())}</div><div class="note">${fmt(S.paycheck.defaultNet)} × 2</div></div>
+      <div class="panel stat"><div class="lbl">Fixed bills</div><div class="val">${fmt0(monthlyBills())}</div><div class="note">${fmt0(billsTotal('1st'))} on the 1st · ${fmt0(billsTotal('15th'))} on the 15th</div></div>
+      <div class="panel stat"><div class="lbl">Set aside for irregulars</div><div class="val">${fmt0(irregularMonthly())}</div><div class="note">Stays in checking, earmarked</div></div>
+      <div class="panel stat"><div class="lbl">Truly free</div><div class="val ${monthlyFree()<0?'bad':'good'}">${fmt0(monthlyFree())}</div><div class="note">≈ ${fmt0(monthlyFree()/2)} per paycheck after Roth, savings & CC</div></div>
+    </div>
+  </section>
+
+  <section class="grid g2">
+    <div class="panel">
+      <h3>Card payoff · ${fmt(ccTotal())} across ${S.cards.length} card${S.cards.length===1?'':'s'}</h3>
+      <div class="rowlist" style="margin:8px 0 14px">${cardProj.map(({c,r,when})=>`<div><span>${esc(c.name)} <span class="muted">· ${fmt0(c.payment)}/mo</span></span><span class="sub" style="text-align:right">${isFinite(r.months)?`${r.months} mo · ${when}`:'never at this payment'}</span></div>`).join('')}</div>
+      ${big?lineChart(proj.rows.slice(0,36).map(r=>({label:'M'+r.month,y:r.closing})),{color:'var(--amber)',h:140}):''}
+      <p class="muted" style="font-size:12.5px;margin:4px 0 0">${big?'Chart shows '+esc(big.name)+'.':''}</p>
+      <div class="actions"><button class="btn sm" data-go="debt">Adjust the plan</button></div>
+    </div>
+    <div class="panel">
+      <h3>Savings buffer</h3>
+      <p class="sub" style="margin:6px 0 14px">${fmt(S.balances.savings)} of the ${fmt0(savT2)} goal${savingsMonthly()>0&&S.balances.savings<savT2?` — about ${Math.ceil((savT2-S.balances.savings)/savingsMonthly())} months at ${fmt0(savingsMonthly())}/mo`:''}.</p>
+      <div class="bar" style="height:18px"><span style="width:${savPct}%;background:var(--green)"></span></div>
+      <div class="legend" style="display:flex;justify-content:space-between;font-size:12.5px;color:var(--ink-3);margin-top:6px"><span>$0</span><span>Tier 1 ${fmt0(S.plan.tier1)} ${S.balances.savings>=S.plan.tier1?'✓':''}</span><span>${fmt0(savT2)}</span></div>
+      <h3 style="margin-top:26px">What was left after each paycheck</h3>
+      ${lineChart(hist,{color:'var(--green)',h:130})}
+    </div>
+  </section>`;
+
+  wireSpendForm('spendQuick',render); wireSpendDeletes(m);
+  $$('[data-clearnow]',m).forEach(cb=>cb.addEventListener('change',()=>{ S.cleared[now.key]=S.cleared[now.key]||{}; S.cleared[now.key][cb.dataset.clearnow]=true; save(); render(); }));
+  $$('[data-clear]',m).forEach(cb=>cb.addEventListener('change',()=>{
+    S.cleared[ckKey]=S.cleared[ckKey]||{}; if(cb.checked) S.cleared[ckKey][cb.dataset.clear]=true; else delete S.cleared[ckKey][cb.dataset.clear]; save(); render();
+  }));
+}
+
+/* --- Pay periods log --- */
+function periodForm(p){
+  const np=nextPayday();
+  const isNew=!p;
+  p=p||{id:null,period:np.period,date:isoOf(np.date),before:'',net:S.paycheck.defaultNet,extra:0,notes:'',ccPaid:null,savingsPaid:null,utilities:null};
+  const per=p.period;
+  const ccBy=id=>sum(billsFor(per).filter(b=>b.kind==='cc'&&b.cardId===id).map(b=>b.amount));
+  const sv=sum(billsFor(per).filter(b=>b.kind==='savings').map(b=>b.amount));
+  const utils=billsFor(per).filter(b=>b.kind==='utility');
+  const irrs=dueIrregulars(periodKey({period:per,date:p.date}));
+  const savingsPaid=p.savingsPaid??sv;
+  return `
+  <div class="panel" id="pform">
+    <h3>${isNew?'Log a paycheck':'Edit '+dLong(p.date)}</h3>
+    <p class="sub" style="margin:4px 0 16px">Fill in what actually happened. Bills you don't change are taken from your bill list at their budgeted amount.</p>
+    <div class="form">
+      <div class="field"><label>Which paycheck</label><select name="period"><option ${per==='1st'?'selected':''}>1st</option><option ${per==='15th'?'selected':''}>15th</option></select></div>
+      <div class="field"><label>Date it actually hit</label><input type="date" name="date" value="${p.date}"><span class="hint">Came early? Use the real date — "Which paycheck" says which one it is</span></div>
+      <div class="field"><label>Net take-home</label><div class="money"><input type="number" step="0.01" name="net" value="${p.net}"></div><span class="hint">Change the default in Settings if it changed for good</span></div>
+      <div class="field"><label>Checking balance just before it hit</label><div class="money"><input type="number" step="0.01" name="before" value="${p.before}" placeholder="0.00"></div></div>
+      ${S.cards.map(c=>`<div class="field"><label>Paid to ${esc(c.name)} this period</label><div class="money"><input type="number" step="0.01" name="cc:${c.id}" value="${p.ccPaidBy&&p.ccPaidBy[c.id]!=null?p.ccPaidBy[c.id]:ccBy(c.id)}"></div><span class="hint">Budgeted ${fmt(ccBy(c.id))} — lowers that card's balance</span></div>`).join('')}
+      <div class="field"><label>Moved to savings</label><div class="money"><input type="number" step="0.01" name="savingsPaid" value="${savingsPaid}"></div><span class="hint">Budgeted ${fmt(sv)} — raises your savings balance</span></div>
+      ${irrs.map(u=>`<div class="field"><label>${esc(u.name)} — actual bill <span class="muted">(irregular, due this check)</span></label><div class="money"><input type="number" step="0.01" name="irr:${esc(u.name)}" value="${p.irregulars&&p.irregulars[u.name]!=null?p.irregulars[u.name]:u.amount}"></div><span class="hint">Budgeted ${fmt(u.amount)}</span></div>`).join('')}
+      ${utils.map(u=>`<div class="field"><label>${esc(u.name)} — actual bill</label><div class="money"><input type="number" step="0.01" name="util:${esc(u.name)}" value="${p.utilities&&p.utilities[u.name]!=null?p.utilities[u.name]:u.amount}"></div><span class="hint">Budgeted ${fmt(u.amount)}</span></div>`).join('')}
+      <div class="field"><label>Other spending not itemized</label><div class="money"><input type="number" step="0.01" name="extra" value="${p.extraManual??p.extra??0}"></div><span class="hint">Itemized purchases for this date are added on top (see Spending page)</span></div>
+      <div class="field wide"><label>Notes</label><input type="text" name="notes" value="${esc(p.notes)}" placeholder="Anything unusual this period"></div>
+    </div>
+    <div class="actions"><button class="btn primary" id="saveP">${isNew?'Save paycheck':'Save changes'}</button><button class="btn" id="cancelP">Cancel</button><span class="sub" id="preview"></span></div>
+  </div>`;
+}
+function readPeriodForm(){
+  const f=$('#pform'); const g=n=>f.querySelector(`[name="${n}"]`);
+  const per=g('period').value;
+  const utils={}; let utilSum=0, utilBudget=0;
+  billsFor(per).filter(b=>b.kind==='utility').forEach(u=>{ const el=g('util:'+u.name); const v=el?num(el.value):u.amount; utils[u.name]=v; utilSum+=v; utilBudget+=u.amount; });
+  const ccPaidBy={}; S.cards.forEach(c=>{ const el=g('cc:'+c.id); ccPaidBy[c.id]=el?num(el.value):sum(billsFor(per).filter(x=>x.kind==='cc'&&x.cardId===c.id).map(x=>x.amount)); }); const ccPaid=round2(sum(Object.values(ccPaidBy)));
+  const savingsPaid=g('savingsPaid')?num(g('savingsPaid').value):sum(billsFor(per).filter(x=>x.kind==='savings').map(x=>x.amount));
+  const date0=g('date').value||todayISO(); const irregulars={}; let irrSum=0;
+  dueIrregulars(periodKey({period:per,date:date0})).forEach(u=>{ const el=g('irr:'+u.name); const v=el?num(el.value):u.amount; irregulars[u.name]=v; irrSum+=v; });
+  const fixed=sum(billsFor(per).filter(b=>!['cc','savings','utility'].includes(b.kind)).map(b=>b.amount));
+  const bills=round2(fixed+ccPaid+savingsPaid+utilSum+irrSum);
+  const date=g('date').value||todayISO(); const extraManual=num(g('extra').value);
+  return {period:per,date,before:num(g('before').value),net:num(g('net').value),extraManual,extra:round2(extraManual+spendTotal(periodKey({period:per,date}))),notes:g('notes').value.trim(),ccPaid,ccPaidBy,savingsPaid,utilities:Object.keys(utils).length?utils:null,irregulars:Object.keys(irregulars).length?irregulars:null,bills};
+}
+function pageLog(m){
+  const rows=S.periods.slice().sort((a,b)=>a.date<b.date?1:-1);
+  m.innerHTML=`
+  <section>
+    <div class="head"><div><h1>Pay periods</h1><p>Every paycheck, what it covered, and what was left. Logging a paycheck also updates your card and savings balances.</p></div>
+    ${editingPeriod===null?'<button class="btn primary" id="newP">Log a paycheck</button>':''}</div>
+    <div id="formSlot">${editingPeriod!==null?periodForm(editingPeriod==='new'?null:S.periods.find(p=>p.id===editingPeriod)):''}</div>
+  </section>
+  <section>
+    <div class="panel wrap" style="padding:8px 14px">
+    ${rows.length?`<table><thead><tr><th>Paycheck</th><th class="r">Before</th><th class="r">Net</th><th class="r">After</th><th class="r">Bills</th><th class="r">Extra</th><th class="r">Left</th><th></th></tr></thead><tbody>
+    ${rows.map(p=>{const left=remaining(p);return `<tr><td><b>${p.period}</b> · ${dLong(p.date)}${p.irregulars?`<div class="muted" style="font-size:12px">Irregular: ${Object.entries(p.irregulars).map(([k,v])=>k+' '+fmt(v)).join(', ')}</div>`:''}${p.utilities?`<div class="muted" style="font-size:12px">Utilities: ${Object.entries(p.utilities).map(([k,v])=>k+' '+fmt(v)).join(', ')}</div>`:''}${p.notes?`<div class="muted" style="font-size:12px">${esc(p.notes)}</div>`:''}</td><td class="r n">${fmt(p.before)}</td><td class="r n good">${fmt(p.net)}</td><td class="r n">${fmt(p.before+p.net)}</td><td class="r n">${fmt(p.bills)}</td><td class="r n">${fmt(p.extra)}</td><td class="r n ${left<0?'bad':''}"><b>${fmt(left)}</b></td><td class="r" style="white-space:nowrap"><button class="btn link sm" data-edit="${p.id}">Edit</button><button class="btn link sm" data-del="${p.id}">Delete</button></td></tr>`;}).join('')}
+    </tbody></table>`:'<div class="empty">No paychecks logged yet.</div>'}
+    </div>
+    <p class="muted" style="font-size:13px">Left = before + net − bills − extra, where extra is your itemized purchases for that period plus anything you typed in "not itemized". Periods imported from your spreadsheet are shown as recorded and didn't touch your balances.</p>
+  </section>`;
+  $('#newP')?.addEventListener('click',()=>{editingPeriod='new';render();});
+  $$('[data-edit]',m).forEach(b=>b.addEventListener('click',()=>{editingPeriod=b.dataset.edit;render();}));
+  $$('[data-del]',m).forEach(b=>b.addEventListener('click',()=>{
+    const p=S.periods.find(x=>x.id===b.dataset.del); if(!confirm(`Delete the ${p.period} paycheck from ${dLong(p.date)}? Any card/savings updates it made will be reversed.`)) return;
+    S.tx.filter(t=>t.periodId===p.id).forEach(t=>applyTx(t,-1)); S.tx=S.tx.filter(t=>t.periodId!==p.id);
+    S.periods=S.periods.filter(x=>x.id!==p.id); resyncExtras(); save(); toast('Paycheck deleted'); render();
+  }));
+  if(editingPeriod!==null){
+    const f=$('#pform');
+    const preview=()=>{ const d=readPeriodForm(); const it=spendTotal(periodKey(d)); $('#preview').textContent=`Bills ${fmt(d.bills)}${it?` · itemized spending ${fmt(it)}`:''} → about ${fmt(round2(d.before+d.net-d.bills-d.extra))} left`; };
+    $('#formSlot').addEventListener('input',e=>{ if(e.target.name==='period'||e.target.name==='date'){ const cur=readPeriodForm(); $('#formSlot').innerHTML=periodForm({...cur,extra:cur.extraManual,id:editingPeriod==='new'?null:editingPeriod,ccPaid:null,ccPaidBy:null,savingsPaid:null,utilities:null}); wire(); } else preview(); });
+    const wire=()=>{ 
+      $('#cancelP').addEventListener('click',()=>{editingPeriod=null;render();});
+      $('#saveP').addEventListener('click',()=>{
+        const d=readPeriodForm();
+        if(!d.net){ toast('Enter the net paycheck amount'); return; }
+        if(editingPeriod==='new'){
+          const p={id:uid(),...d,seeded:false}; S.periods.push(p);
+          Object.entries(d.ccPaidBy).forEach(([cid,amt])=>{ if(amt>0){ const t={id:uid(),date:d.date,kind:'cc_payment',cardId:cid,amount:amt,note:`${d.period} paycheck`,periodId:p.id}; S.tx.push(t); applyTx(t,1); } });
+          if(d.savingsPaid>0){ const t={id:uid(),date:d.date,kind:'savings_deposit',amount:d.savingsPaid,note:`${d.period} paycheck`,periodId:p.id}; S.tx.push(t); applyTx(t,1); }
+          S.balances.checking=round2(d.before+d.net-d.bills-d.extra); S.balances.asOf=d.date;
+          toast('Paycheck logged — balances updated');
+        }else{
+          const p=S.periods.find(x=>x.id===editingPeriod);
+          if(!p.seeded){
+            S.tx.filter(t=>t.periodId===p.id).forEach(t=>applyTx(t,-1)); S.tx=S.tx.filter(t=>t.periodId!==p.id);
+            Object.entries(d.ccPaidBy).forEach(([cid,amt])=>{ if(amt>0){ const t={id:uid(),date:d.date,kind:'cc_payment',cardId:cid,amount:amt,note:`${d.period} paycheck`,periodId:p.id}; S.tx.push(t); applyTx(t,1); } });
+            if(d.savingsPaid>0){ const t={id:uid(),date:d.date,kind:'savings_deposit',amount:d.savingsPaid,note:`${d.period} paycheck`,periodId:p.id}; S.tx.push(t); applyTx(t,1); }
+          }
+          Object.assign(p,d);
+          const latest=S.periods.slice().sort((a,b)=>a.date<b.date?1:-1)[0];
+          if(latest&&latest.id===p.id){ S.balances.checking=remaining(p); S.balances.asOf=d.date; }
+          toast('Changes saved');
+        }
+        resyncExtras(); editingPeriod=null; save(); render();
+      });
+      preview();
+    };
+    wire();
+  }
+}
+
+/* --- Spending --- */
+function pageSpending(m){
+  const cur=currentPeriod();
+  const keys=[...new Set([cur.key,...S.spend.map(x=>spendKeyFor(x.date)),...S.periods.map(p=>periodKey(p))])].sort().reverse();
+  m.innerHTML=`
+  <section>
+    <div class="head"><div><h1>Spending</h1><p>Everything that isn't a bill — groceries beyond the restock budget, gas, Amazon, going out. Each purchase lands in the pay period its date falls in and pulls down that period's free money.</p></div></div>
+    <div class="panel"><h3>Add a purchase</h3><div style="margin-top:12px">${spendForm('spendMain')}</div></div>
+  </section>
+  ${keys.map(k=>{ const p=S.periods.find(x=>periodKey(x)===k); const total=spendTotal(k); const isCur=k===cur.key; const items=spendFor(k);
+    if(!items.length && !isCur) return '';
+    const start=p?beforeSpend(p):(isCur?cur.start:null);
+    return `<section><div class="head"><div><h2>${k.endsWith('15')?'15th':'1st'} paycheck · ${dLong(k)}${isCur?' <span class="tag" style="vertical-align:middle">current</span>':''}</h2><p>${start!=null?`${fmt(start)} free after bills → spent ${fmt(total)} → <b>${fmt(round2(start-total))}</b> left`:`Spent ${fmt(total)} — this check isn't logged yet`}</p></div></div><div class="panel">${spendList(k)}</div></section>`; }).join('')}`;
+  wireSpendForm('spendMain',render); wireSpendDeletes(m);
+}
+
+/* --- Bills --- */
+function billRow(b){
+  return `<tr data-id="${b.id}" class="drag-row">
+    <td class="grip" title="Drag to reorder, or drop into the other paycheck's table"><span class="handle" draggable="true">⋮⋮</span><span class="mv"><button class="btn link sm" data-mv="up" title="Move up">▲</button><button class="btn link sm" data-mv="down" title="Move down">▼</button></span></td>
+    <td><input class="cell" data-f="name" value="${esc(b.name)}" style="width:100%"></td>
+    <td><input class="cell" data-f="dueDay" value="${esc(b.dueDay)}" style="width:56px"></td>
+    <td><select class="cell" data-f="type"><option ${b.type==='Auto'?'selected':''}>Auto</option><option ${b.type==='Manual'?'selected':''}>Manual</option></select></td>
+    <td><select class="cell" data-f="kind"><option value="bill" ${b.kind==='bill'?'selected':''}>Bill</option><option value="cc" ${b.kind==='cc'?'selected':''}>Card payment</option><option value="savings" ${b.kind==='savings'?'selected':''}>Savings transfer</option><option value="roth" ${b.kind==='roth'?'selected':''}>Roth</option><option value="utility" ${b.kind==='utility'?'selected':''}>Utility (varies)</option></select>${b.kind==='cc'?`<select class="cell" data-f="cardId" style="margin-top:4px">${S.cards.map(c=>`<option value="${c.id}" ${b.cardId===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}</select>`:''}</td>
+    <td class="r"><div class="money"><input class="cell" type="number" step="0.01" data-f="amount" value="${b.amount}" style="width:110px"></div></td>
+    <td><input class="cell" data-f="notes" value="${esc(b.notes)}" style="width:100%" placeholder="notes"></td>
+    <td class="r"><button class="btn link sm" data-delbill="${b.id}">Remove</button></td></tr>`;
+}
+function pageBills(m){
+  const tbl=per=>`<div class="panel wrap" style="padding:8px 14px">
+    <table><thead><tr><th style="width:44px"></th><th>Bill</th><th>Due</th><th>Type</th><th>Kind</th><th class="r">Amount</th><th>Notes</th><th></th></tr></thead>
+    <tbody data-per="${per}">${billsFor(per).map(billRow).join('')}</tbody>
+    <tfoot><tr><td colspan="5"><b>Total from the ${per} paycheck</b></td><td class="r n"><b>${fmt(billsTotal(per))}</b></td><td colspan="2" class="r"><button class="btn sm" data-add="${per}">Add a bill</button></td></tr></tfoot></table></div>`;
+  m.innerHTML=`
+  <section>
+    <div class="head"><div><h1>Bills</h1><p>Edit right in the table — changes save as you type and flow into the payday view. Drag the ⋮⋮ handle (or use ▲▼) to reorder; drag a row into the other table to move it to the other paycheck. "Kind" tells the paycheck form which lines can vary (card, savings, utilities).</p></div></div>
+    <h2 style="margin-bottom:10px">Paid from the 1st paycheck</h2>${tbl('1st')}
+    <h2 style="margin:32px 0 10px">Paid from the 15th paycheck</h2>${tbl('15th')}
+  </section>
+  <section>
+    <div class="head"><div><h2>Irregular & annual bills</h2><p>The monthly set-aside stays in checking, earmarked. Give one a check (1st/15th) and the months it hits and it'll show up in that paycheck's checklist and log form automatically — that's why checking looks ~${fmt0(irregularMonthly())} richer than your free money.</p></div></div>
+    <div class="panel wrap" style="padding:8px 14px"><table><thead><tr><th style="width:44px"></th><th>Bill</th><th class="r">Amount</th><th class="r">Every (months)</th><th class="r">Set aside / mo</th><th>Lands on</th><th>Notes</th><th></th></tr></thead><tbody>
+    ${S.irregular.map(i=>`<tr data-iid="${i.id}" class="drag-row"><td class="grip"><span class="handle" draggable="true">⋮⋮</span><span class="mv"><button class="btn link sm" data-mvi="up">▲</button><button class="btn link sm" data-mvi="down">▼</button></span></td><td><input class="icell" data-f="name" value="${esc(i.name)}" style="width:100%"></td><td class="r"><div class="money"><input class="icell" type="number" step="0.01" data-f="amount" value="${i.amount}" style="width:110px"></div></td><td class="r"><input class="icell" type="number" data-f="everyMonths" value="${i.everyMonths}" style="width:70px;text-align:right"></td><td class="r n">${fmt(i.amount/(i.everyMonths||12))}</td><td style="white-space:nowrap"><select class="icell" data-f="on"><option value="" ${!i.on?'selected':''}>— manual</option><option ${i.on==='1st'?'selected':''}>1st</option><option ${i.on==='15th'?'selected':''}>15th</option></select> <input class="icell" data-f="months" value="${esc(i.months||'')}" placeholder="months, e.g. 1,4,7,10" style="width:150px"></td><td><input class="icell" data-f="notes" value="${esc(i.notes)}" style="width:100%"></td><td class="r"><button class="btn link sm" data-delirr="${i.id}">Remove</button></td></tr>`).join('')}
+    </tbody><tfoot><tr><td colspan="4"><b>Total set-aside</b></td><td class="r n"><b>${fmt(irregularMonthly())}</b></td><td colspan="3" class="r"><button class="btn sm" id="addIrr">Add one</button></td></tr></tfoot></table></div>
+  </section>`;
+  const style=document.createElement('style'); style.textContent='.grip{white-space:nowrap;color:var(--ink-3);width:44px}.handle{cursor:grab;user-select:none;font-size:15px;letter-spacing:-2px;padding:2px 4px}.handle:active{cursor:grabbing}.mv{display:none}.mv .btn{padding:0 3px;font-size:10px;text-decoration:none}tr.drag-row:hover .mv,tr.drag-row:focus-within .mv{display:inline-flex;flex-direction:column;vertical-align:middle}@media(hover:none){.mv{display:inline-flex;flex-direction:column;vertical-align:middle}.handle{display:none}}tr.dragging{opacity:.4}tr.drop-above td{box-shadow:inset 0 2px 0 var(--green)}tr.drop-below td{box-shadow:inset 0 -2px 0 var(--green)}tbody.drop-empty::after{content:""}.cell,.icell{border:1px solid transparent;background:transparent;padding:6px 8px;border-radius:6px}.cell:hover,.icell:hover{border-color:var(--rule)}.cell:focus,.icell:focus{background:var(--paper);border-color:var(--ink-3);outline:none}'; m.prepend(style);
+  let t; const debounce=fn=>{clearTimeout(t);t=setTimeout(fn,500);};
+  $$('.cell',m).forEach(inp=>inp.addEventListener('input',()=>{ const b=S.bills.find(x=>x.id===inp.closest('tr').dataset.id); const f=inp.dataset.f; b[f]=f==='amount'?num(inp.value):inp.value; save(); debounce(()=>{ if(document.activeElement===inp && inp.type!=='number' && inp.tagName!=='SELECT') return; render(); }); }));
+  $$('.cell',m).forEach(inp=>inp.addEventListener('blur',()=>render()));
+  $$('.icell',m).forEach(inp=>inp.addEventListener('input',()=>{ const i=S.irregular.find(x=>x.id===inp.closest('tr').dataset.iid); const f=inp.dataset.f; i[f]=(f==='amount'||f==='everyMonths')?num(inp.value):inp.value; save(); if(inp.tagName==='SELECT') render(); }));
+  $$('.icell',m).forEach(inp=>inp.addEventListener('blur',()=>render()));
+  // reorder: drag & drop + arrow buttons
+  const moveBill=(id,targetId,where,per)=>{ const b=S.bills.find(x=>x.id===id); S.bills=S.bills.filter(x=>x.id!==id); b.period=per; if(per!=='1st'&&per!=='15th') b.period='1st';
+    let idx; if(targetId){ idx=S.bills.findIndex(x=>x.id===targetId); if(where==='below') idx++; } else { idx=S.bills.length; }
+    S.bills.splice(idx,0,b); save(); render(); };
+  let dragId=null, dragKind=null;
+  $$('tbody[data-per] .handle',m).forEach(h=>{ h.addEventListener('dragstart',e=>{ dragId=h.closest('tr').dataset.id; dragKind='bill'; h.closest('tr').classList.add('dragging'); e.dataTransfer.effectAllowed='move'; e.dataTransfer.setData('text/plain',dragId); }); h.addEventListener('dragend',()=>{ $$('tr',m).forEach(r=>r.classList.remove('dragging','drop-above','drop-below')); }); });
+  $$('tbody[data-per]',m).forEach(tb=>{
+    tb.addEventListener('dragover',e=>{ if(dragKind!=='bill') return; e.preventDefault(); e.dataTransfer.dropEffect='move'; $$('tr',m).forEach(r=>r.classList.remove('drop-above','drop-below')); const row=e.target.closest('tr'); if(row&&row.dataset.id){ const r=row.getBoundingClientRect(); row.classList.add(e.clientY<r.top+r.height/2?'drop-above':'drop-below'); } });
+    tb.addEventListener('drop',e=>{ if(dragKind!=='bill') return; e.preventDefault(); const row=e.target.closest('tr'); const per=tb.dataset.per; if(row&&row.dataset.id&&row.dataset.id!==dragId){ const r=row.getBoundingClientRect(); moveBill(dragId,row.dataset.id,e.clientY<r.top+r.height/2?'above':'below',per); } else if(!row||!row.dataset.id){ moveBill(dragId,null,null,per); } dragId=null; dragKind=null; });
+  });
+  $$('[data-mv]',m).forEach(btn=>btn.addEventListener('click',()=>{ const id=btn.closest('tr').dataset.id; const b=S.bills.find(x=>x.id===id); const sib=billsFor(b.period); const i=sib.indexOf(b); const j=btn.dataset.mv==='up'?i-1:i+1; if(j<0||j>=sib.length) return; moveBill(id,sib[j].id,btn.dataset.mv==='up'?'above':'below',b.period); }));
+  const moveIrr=(id,targetId,where)=>{ const it=S.irregular.find(x=>x.id===id); S.irregular=S.irregular.filter(x=>x.id!==id); let idx=targetId?S.irregular.findIndex(x=>x.id===targetId):S.irregular.length; if(targetId&&where==='below') idx++; S.irregular.splice(idx,0,it); save(); render(); };
+  const itb=$('tr[data-iid]',m)?.closest('tbody');
+  if(itb){
+    $$('.handle',itb).forEach(h=>{ h.addEventListener('dragstart',e=>{ dragId=h.closest('tr').dataset.iid; dragKind='irr'; h.closest('tr').classList.add('dragging'); e.dataTransfer.setData('text/plain',dragId); }); h.addEventListener('dragend',()=>{ $$('tr',m).forEach(r=>r.classList.remove('dragging','drop-above','drop-below')); }); });
+    itb.addEventListener('dragover',e=>{ if(dragKind!=='irr') return; e.preventDefault(); $$('tr',itb).forEach(r=>r.classList.remove('drop-above','drop-below')); const row=e.target.closest('tr'); if(row&&row.dataset.iid){ const r=row.getBoundingClientRect(); row.classList.add(e.clientY<r.top+r.height/2?'drop-above':'drop-below'); } });
+    itb.addEventListener('drop',e=>{ if(dragKind!=='irr') return; e.preventDefault(); const row=e.target.closest('tr'); if(row&&row.dataset.iid&&row.dataset.iid!==dragId){ const r=row.getBoundingClientRect(); moveIrr(dragId,row.dataset.iid,e.clientY<r.top+r.height/2?'above':'below'); } dragId=null; dragKind=null; });
+    $$('[data-mvi]',m).forEach(btn=>btn.addEventListener('click',()=>{ const id=btn.closest('tr').dataset.iid; const i=S.irregular.findIndex(x=>x.id===id); const j=btn.dataset.mvi==='up'?i-1:i+1; if(j<0||j>=S.irregular.length) return; moveIrr(id,S.irregular[j].id,btn.dataset.mvi==='up'?'above':'below'); }));
+  }
+  $$('[data-add]',m).forEach(b=>b.addEventListener('click',()=>{ S.bills.push({id:uid(),name:'New bill',period:b.dataset.add,dueDay:b.dataset.add,type:'Auto',amount:0,notes:'',kind:'bill'}); save(); render(); }));
+  $('#addIrr').addEventListener('click',()=>{ S.irregular.push({id:uid(),name:'New item',amount:0,everyMonths:12,notes:''}); save(); render(); });
+  $$('[data-delbill]',m).forEach(b=>b.addEventListener('click',()=>{ const bill=S.bills.find(x=>x.id===b.dataset.delbill); if(confirm(`Remove ${bill.name}?`)){ S.bills=S.bills.filter(x=>x.id!==bill.id); save(); render(); } }));
+  $$('[data-delirr]',m).forEach(b=>b.addEventListener('click',()=>{ S.irregular=S.irregular.filter(x=>x.id!==b.dataset.delirr); save(); render(); }));
+}
+
+/* --- Debt & savings --- */
+let selCard=null;
+function pageDebt(m){
+  const P=S.plan;
+  if(!selCard||!card(selCard)) selCard=S.cards.slice().sort((a,b)=>b.balance-a.balance)[0]?.id||null;
+  const C=card(selCard);
+  const proj=C?projectCC(C.balance,C.apr,C.payment,C.extra):null;
+  const alt=C?[100,200,400,600,900,1200,1500,2000,2500].filter(p=>p<=Math.max(2500,C.balance)).map(p=>({p,r:projectCC(C.balance,C.apr,p,0)})):[];
+  const tx=S.tx.slice().sort((a,b)=>a.date<b.date?1:-1).slice(0,25);
+  const kindLabel={cc_payment:'Card payment',cc_charge:'Card charge',savings_deposit:'Savings deposit',savings_withdrawal:'Savings withdrawal'};
+  const totalPay=sum(S.cards.map(c=>c.payment));
+  m.innerHTML=`
+  <section>
+    <div class="head"><div><h1>Debt & savings</h1><p>Card and savings balances move automatically when you log a paycheck. Use quick actions for anything in between, and sync to the real number whenever you check a statement.</p></div><button class="btn" id="addCard">Add a card</button></div>
+    <div class="grid g4">
+      ${S.cards.map(c=>`<div class="panel stat"><div class="lbl">${esc(c.name)}</div><div class="val warn">${fmt(c.balance)}</div><div class="note">${c.apr}% APR · ${fmt0(ccBudgetFor(c.id))}/mo in bills</div></div>`).join('')}
+      <div class="panel stat"><div class="lbl">Savings</div><div class="val good">${fmt(S.balances.savings)}</div><div class="note">${S.balances.savings>=P.tier1?'Tier 1 buffer reached':fmt(P.tier1-S.balances.savings)+' to tier 1'}</div></div>
+      <div class="panel stat"><div class="lbl">Checking</div><div class="val">${fmt(S.balances.checking)}</div><div class="note">As of ${dShort(S.balances.asOf)}</div></div>
+    </div>
+    ${S.cards.length>1?`<p class="sub" style="margin:12px 2px 0">Total card debt <b class="num">${fmt(ccTotal())}</b>. Avalanche says: minimums on everything, every spare dollar at the highest APR${(()=>{const h=S.cards.slice().sort((a,b)=>b.apr-a.apr)[0]; return h?' — that\'s '+esc(h.name)+' at '+h.apr+'%':'';})()}.</p>`:''}
+  </section>
+
+  <section class="grid g2">
+    <div class="panel">
+      <h3>Quick action</h3>
+      <div class="form" style="margin-top:12px">
+        <div class="field"><label>What happened</label><select id="qkind"><option value="cc_payment">Paid extra on a card</option><option value="cc_charge">Put a charge on a card</option><option value="savings_deposit">Added to savings</option><option value="savings_withdrawal">Pulled from savings</option></select></div>
+        <div class="field" id="qcardWrap"><label>Which card</label><select id="qcard">${S.cards.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></div>
+        <div class="field"><label>Amount</label><div class="money"><input type="number" step="0.01" id="qamt" placeholder="0.00"></div></div>
+        <div class="field"><label>Date</label><input type="date" id="qdate" value="${todayISO()}"></div>
+        <div class="field wide"><label>Note</label><input type="text" id="qnote" placeholder="optional"></div>
+      </div>
+      <div class="actions"><button class="btn primary" id="qsave">Record it</button></div>
+    </div>
+    <div class="panel">
+      <h3>Sync to real balances</h3>
+      <p class="sub" style="margin:4px 0 12px">Type what the bank or statement actually says. This overrides the running estimate.</p>
+      <div class="form">
+        <div class="field"><label>Checking</label><div class="money"><input type="number" step="0.01" id="sChk" value="${S.balances.checking}"></div></div>
+        <div class="field"><label>Savings</label><div class="money"><input type="number" step="0.01" id="sSav" value="${S.balances.savings}"></div></div>
+        ${S.cards.map(c=>`<div class="field"><label>${esc(c.name)}</label><div class="money"><input type="number" step="0.01" data-scard="${c.id}" value="${c.balance}"></div></div>`).join('')}
+        <div class="field"><label>As of</label><input type="date" id="sDate" value="${todayISO()}"></div>
+      </div>
+      <div class="actions"><button class="btn" id="ssave">Update balances</button></div>
+    </div>
+  </section>
+
+  ${C?`<section>
+    <div class="head"><div><h2>Payoff plan</h2><p>Pick a card and drag the payment to see how fast it disappears. Across all cards you're planning ${fmt0(totalPay)}/mo; your bill list currently sends ${fmt0(sum(S.bills.filter(b=>b.kind==='cc').map(b=>b.amount)))}/mo.</p></div>
+      <select id="selCard" class="btn">${S.cards.map(c=>`<option value="${c.id}" ${c.id===selCard?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div>
+    <div class="panel">
+      <div class="form">
+        <div class="field wide"><label>Monthly payment to ${esc(C.name)} — <b class="num" id="payLbl">${fmt0(C.payment)}</b></label><input type="range" min="25" max="4000" step="25" id="paySlider" value="${C.payment}"></div>
+        <div class="field"><label>APR %</label><input type="number" step="0.01" id="apr" value="${C.apr}"></div>
+        <div class="field"><label>One-time extra (next month)</label><div class="money"><input type="number" step="1" id="extra" value="${C.extra}"></div></div>
+        <div class="field"><label>Card name</label><input type="text" id="ccName" value="${esc(C.name)}"></div>
+        <div class="field"><label>&nbsp;</label><button class="btn danger" id="delCard">Remove this card</button></div>
+      </div>
+      <div class="grid g3" style="margin:20px 0">
+        <div class="stat"><div class="lbl">Paid off in</div><div class="val">${isFinite(proj.months)?proj.months+' mo':'never'}</div></div>
+        <div class="stat"><div class="lbl">Interest paid</div><div class="val warn">${isFinite(proj.months)?fmt0(proj.interestTotal):'—'}</div></div>
+        <div class="stat"><div class="lbl">Total paid</div><div class="val">${isFinite(proj.months)?fmt0(sum(proj.rows.map(r=>r.pay))):'—'}</div></div>
+      </div>
+      ${lineChart(proj.rows.slice(0,48).map(r=>({label:'M'+r.month,y:r.closing})),{color:'var(--amber)',h:190})}
+      <details class="details" style="margin-top:14px"><summary>Compare payment sizes</summary>
+        <div class="wrap"><table style="margin-top:8px"><thead><tr><th>Payment</th><th class="r">Months</th><th class="r">Interest</th><th class="r">Done by</th></tr></thead><tbody>
+        ${alt.map(({p,r})=>{const d=new Date(); d.setMonth(d.getMonth()+(isFinite(r.months)?r.months:0)); return `<tr><td class="n">${fmt0(p)}/mo</td><td class="r n">${isFinite(r.months)?r.months:'never'}</td><td class="r n">${isFinite(r.months)?fmt0(r.interestTotal):'—'}</td><td class="r">${isFinite(r.months)?d.toLocaleDateString('en-US',{month:'short',year:'numeric'}):'—'}</td></tr>`;}).join('')}
+        </tbody></table></div></details>
+      <details class="details" style="margin-top:10px"><summary>Month-by-month table</summary>
+        <div class="wrap"><table style="margin-top:8px"><thead><tr><th>Month</th><th class="r">Opening</th><th class="r">Interest</th><th class="r">Payment</th><th class="r">Closing</th></tr></thead><tbody>
+        ${proj.rows.map(r=>`<tr><td>${r.month}</td><td class="r n">${fmt(r.opening)}</td><td class="r n">${fmt(r.interest)}</td><td class="r n">${fmt(r.pay)}</td><td class="r n">${fmt(r.closing)}</td></tr>`).join('')}
+        </tbody></table></div></details>
+    </div>
+  </section>`:''}
+
+  <section class="grid g2">
+    <div class="panel">
+      <h3>Savings goals</h3>
+      <div class="form" style="margin-top:12px">
+        <div class="field"><label>Tier 1 — emergency buffer</label><div class="money"><input type="number" step="50" id="t1" value="${P.tier1}"></div></div>
+        <div class="field"><label>Tier 2 — 3-month cushion</label><div class="money"><input type="number" step="50" id="t2" value="${P.tier2}"></div></div>
+      </div>
+      <div class="bar" style="height:18px;margin-top:18px"><span style="width:${Math.min(100,S.balances.savings/P.tier2*100)}%;background:var(--green)"></span></div>
+      <p class="sub" style="margin-top:8px">${fmt(S.balances.savings)} saved. Transfers in your bill list add ${fmt0(savingsMonthly())}/mo${savingsMonthly()>0&&S.balances.savings<P.tier2?`, so tier 2 lands in about ${Math.ceil((P.tier2-S.balances.savings)/savingsMonthly())} months`:''}.</p>
+      <p class="sub">Once the cards are gone, that ${fmt0(sum(S.bills.filter(b=>b.kind==='cc').map(b=>b.amount)))}/mo is free to redirect here or to the Roth.</p>
+    </div>
+    <div class="panel">
+      <h3>Recent activity</h3>
+      ${tx.length?`<div class="rowlist" style="margin-top:8px">${tx.map(t=>`<div><span>${kindLabel[t.kind]}${t.cardId&&card(t.cardId)?' · '+esc(card(t.cardId).name):''} <span class="muted">· ${dShort(t.date)}${t.note?' · '+esc(t.note):''}</span></span><span style="white-space:nowrap"><span class="num ${t.kind==='cc_payment'||t.kind==='savings_deposit'?'good':'warn'}">${fmt(t.amount)}</span> <button class="btn link sm" data-deltx="${t.id}" title="Undo">undo</button></span></div>`).join('')}</div>`:'<div class="empty">Nothing recorded yet. Log a paycheck or use a quick action.</div>'}
+    </div>
+  </section>`;
+
+  const qk=$('#qkind'); const showCard=()=>{ $('#qcardWrap').style.display=qk.value.startsWith('cc_')?'':'none'; }; qk.addEventListener('change',showCard); showCard();
+  $('#qsave').addEventListener('click',()=>{ const amt=num($('#qamt').value); if(!amt){toast('Enter an amount');return;} const t={id:uid(),date:$('#qdate').value||todayISO(),kind:qk.value,amount:amt,note:$('#qnote').value.trim()}; if(t.kind.startsWith('cc_')) t.cardId=$('#qcard').value; S.tx.push(t); applyTx(t,1); save(); toast('Recorded'); render(); });
+  $('#ssave').addEventListener('click',()=>{ S.balances.checking=num($('#sChk').value); S.balances.savings=num($('#sSav').value); $$('[data-scard]',m).forEach(i=>{ card(i.dataset.scard).balance=num(i.value); }); S.balances.asOf=$('#sDate').value||todayISO(); save(); toast('Balances updated'); render(); });
+  $('#addCard').addEventListener('click',()=>{ const name=prompt('Card name?'); if(!name) return; const bal=num(prompt('Current balance?','0')); const apr=num(prompt('APR %?','24.99')); const c={id:uid(),name:name.trim(),balance:bal,apr,payment:50,extra:0}; S.cards.push(c); selCard=c.id; save(); render(); });
+  if(C){
+    $('#selCard').addEventListener('change',e=>{ selCard=e.target.value; render(); });
+    const slider=$('#paySlider'); slider.addEventListener('input',()=>{ $('#payLbl').textContent=fmt0(slider.value); }); slider.addEventListener('change',()=>{ C.payment=num(slider.value); save(); render(); });
+    $('#apr').addEventListener('change',e=>{C.apr=num(e.target.value);save();render();});
+    $('#extra').addEventListener('change',e=>{C.extra=num(e.target.value);save();render();});
+    $('#ccName').addEventListener('change',e=>{C.name=e.target.value.trim()||'Credit card';save();render();});
+    $('#delCard').addEventListener('click',()=>{ if(S.cards.length===1){toast('Keep at least one card');return;} if(!confirm(`Remove ${C.name}? Its bill lines will move to your other card.`)) return; const other=S.cards.find(c=>c.id!==C.id); S.bills.forEach(b=>{ if(b.cardId===C.id) b.cardId=other.id; }); S.cards=S.cards.filter(c=>c.id!==C.id); selCard=null; save(); render(); });
+  }
+  $('#t1').addEventListener('change',e=>{P.tier1=num(e.target.value);save();render();});
+  $('#t2').addEventListener('change',e=>{P.tier2=num(e.target.value);save();render();});
+  $$('[data-deltx]',m).forEach(b=>b.addEventListener('click',()=>{ const t=S.tx.find(x=>x.id===b.dataset.deltx); if(t.periodId){ toast('That came from a logged paycheck — edit it on the Pay periods page'); return; } applyTx(t,-1); S.tx=S.tx.filter(x=>x.id!==t.id); save(); toast('Undone'); render(); }));
+}
+
+/* --- Home upkeep --- */
+function pageUpkeep(m){
+  const today=todayISO();
+  const rows=S.maintenance.slice().sort((a,b)=>(a.next||'9999')<(b.next||'9999')?-1:1);
+  m.innerHTML=`
+  <section>
+    <div class="head"><div><h1>Home upkeep</h1><p>The recurring house and pet chores that cost money. Overdue items are flagged; mark one done and it rolls forward.</p></div><button class="btn" id="addM">Add an item</button></div>
+    <div class="panel wrap" style="padding:8px 14px"><table><thead><tr><th>Item</th><th>Who</th><th>How often</th><th>Last done</th><th>Next due</th><th class="r">Cost</th><th></th></tr></thead><tbody>
+    ${rows.map(r=>{const over=r.next&&r.next<today; return `<tr><td><b>${esc(r.item)}</b>${r.notes?`<div class="muted" style="font-size:12px;max-width:320px">${esc(r.notes)}</div>`:''}</td><td>${esc(r.company)}</td><td>${esc(r.when)}</td><td>${r.last?dShort(r.last)+' '+r.last.slice(0,4):'—'}</td><td class="${over?'bad':''}">${r.next?dShort(r.next)+' '+r.next.slice(0,4):'—'}${over?' <span class="tag" style="color:var(--red);background:var(--red-soft);border-color:transparent">overdue</span>':''}</td><td class="r n">${r.cost!=null?fmt0(r.cost):'—'}</td><td class="r" style="white-space:nowrap"><button class="btn link sm" data-done="${r.id}">Done today</button><button class="btn link sm" data-editm="${r.id}">Edit</button></td></tr>`;}).join('')}
+    </tbody></table></div>
+  </section>
+  <section id="mform"></section>`;
+  const form=(r)=>{ r=r||{id:null,item:'',company:'',when:'',last:'',next:'',cost:'',notes:''};
+    $('#mform').innerHTML=`<div class="panel"><h3>${r.id?'Edit item':'New item'}</h3><div class="form" style="margin-top:12px">
+      <div class="field"><label>Item</label><input id="mi" value="${esc(r.item)}"></div><div class="field"><label>Company</label><input id="mc" value="${esc(r.company)}"></div><div class="field"><label>How often</label><input id="mw" value="${esc(r.when)}"></div>
+      <div class="field"><label>Last done</label><input type="date" id="ml" value="${r.last}"></div><div class="field"><label>Next due</label><input type="date" id="mn" value="${r.next}"></div><div class="field"><label>Cost</label><div class="money"><input type="number" step="1" id="mco" value="${r.cost??''}"></div></div>
+      <div class="field wide"><label>Notes</label><input id="mno" value="${esc(r.notes)}"></div></div>
+      <div class="actions"><button class="btn primary" id="msave">Save</button><button class="btn" id="mcancel">Cancel</button>${r.id?'<button class="btn danger" id="mdel">Remove</button>':''}</div></div>`;
+    $('#mcancel').addEventListener('click',()=>{$('#mform').innerHTML='';});
+    $('#msave').addEventListener('click',()=>{ const d={item:$('#mi').value.trim(),company:$('#mc').value.trim(),when:$('#mw').value.trim(),last:$('#ml').value,next:$('#mn').value,cost:$('#mco').value===''?null:num($('#mco').value),notes:$('#mno').value.trim()}; if(!d.item){toast('Give it a name');return;} if(r.id){Object.assign(S.maintenance.find(x=>x.id===r.id),d);}else{S.maintenance.push({id:uid(),...d});} save(); render(); });
+    $('#mdel')?.addEventListener('click',()=>{ if(confirm(`Remove ${r.item}?`)){ S.maintenance=S.maintenance.filter(x=>x.id!==r.id); save(); render(); } });
+    $('#mform').scrollIntoView({behavior:'smooth',block:'nearest'});
+  };
+  $('#addM').addEventListener('click',()=>form(null));
+  $$('[data-editm]',m).forEach(b=>b.addEventListener('click',()=>form(S.maintenance.find(x=>x.id===b.dataset.editm))));
+  $$('[data-done]',m).forEach(b=>b.addEventListener('click',()=>{ const r=S.maintenance.find(x=>x.id===b.dataset.done); const months=prompt(`Marked "${r.item}" done today. Roll the next due date forward by how many months?`, r.when.toLowerCase().includes('year')?'12':'6'); if(months===null) return; const d=new Date(); r.last=isoOf(d); d.setMonth(d.getMonth()+(parseInt(months)||12)); r.next=isoOf(d); save(); toast('Rolled forward'); render(); }));
+}
+
+/* --- Settings --- */
+function pageSettings(m){
+  m.innerHTML=`
+  <section>
+    <div class="head"><div><h1>Settings</h1><p>Everything lives in this browser's storage on this computer. Export a backup now and then, or to move to another machine.</p></div></div>
+    <div class="grid g2">
+      <div class="panel"><h3>Paycheck</h3>
+        <div class="form" style="margin-top:12px"><div class="field"><label>Default net take-home per check</label><div class="money"><input type="number" step="0.01" id="defNet" value="${S.paycheck.defaultNet}"></div><span class="hint">Used for the payday preview and prefilled when you log a check. Change it when your pay changes.</span></div></div>
+        <div class="actions"><button class="btn primary" id="saveNet">Save</button></div></div>
+      <div class="panel"><h3>Backup</h3>
+        <p class="sub" style="margin:4px 0 12px">Exports a JSON file with all bills, paychecks, balances and upkeep items.</p>
+        <div class="actions" style="margin-top:0"><button class="btn primary" id="exp">Export backup</button><label class="btn" style="cursor:pointer">Import backup<input type="file" accept="application/json" id="imp" hidden></label></div></div>
+    </div>
+  </section>
+  <section><div class="panel">
+    <h3>Start over</h3><p class="sub" style="margin:4px 0 12px">Reloads the data this file shipped with (Jul–Sep 2026 history, bills, balances as of Sep 28, 2026). Anything you've added since is lost — export first if you want to keep it.</p>
+    <button class="btn danger" id="reset">Reset to spreadsheet data</button>
+  </div></section>`;
+  $('#saveNet').addEventListener('click',()=>{ S.paycheck.defaultNet=num($('#defNet').value); save(); toast('Saved'); render(); });
+  $('#exp').addEventListener('click',()=>{ const blob=new Blob([JSON.stringify(S,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`paycheck-ledger-${todayISO()}.json`; a.click(); URL.revokeObjectURL(a.href); });
+  $('#imp').addEventListener('change',e=>{ const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ try{ const d=JSON.parse(r.result); if(!d.bills||!d.balances) throw 0; S=d; migrate(); save(); toast('Backup imported'); render(); }catch{ toast('That file is not a Paycheck Ledger backup'); } }; r.readAsText(f); });
+  $('#reset').addEventListener('click',()=>{ if(confirm('Reset everything to the original spreadsheet data?')){ S=seed(); save(); toast('Reset'); render(); } });
+}
+
+/* ---------- boot ---------- */
+document.addEventListener('click',e=>{
+  const nb=e.target.closest('[data-page]'); if(nb){ page=nb.dataset.page; editingPeriod=null; location.hash=page; render(); return; }
+  const go=e.target.closest('[data-go]'); if(go){ page=go.dataset.go; editingPeriod=go.dataset.new?'new':null; location.hash=page; render(); }
+});
+load(); migrate(); save(); render();
+</script>
+</body>
+</html>
